@@ -11,6 +11,16 @@ import glob
 import pdfplumber
 import pandas as pd
 
+# ==============================================================================
+# CONFIGURACIÓN DE RUTAS (Puedes editar estas variables directamente en el script)
+# ==============================================================================
+# Carpeta de entrada que contiene los archivos PDF (getjobid*.pdf)
+INPUT_DIR = "."
+
+# Nombre/ruta del archivo Excel de salida consolidado
+OUTPUT_FILE = "pagos_amortizacion_consolidado.xlsx"
+# ==============================================================================
+
 def clean_value(val_str):
     """
     Cleans a numeric string by removing non-numeric characters (except minus, period, and comma),
@@ -207,8 +217,8 @@ def process_pdf_file(filepath):
 
 def main():
     parser = argparse.ArgumentParser(description="Process DGCP PDFs and consolidate amortization payments to Excel.")
-    parser.add_argument("--input-dir", default=".", help="Directory containing getjobid*.pdf files (default: current directory)")
-    parser.add_argument("--output", default="pagos_amortizacion_consolidado.xlsx", help="Path for the output Excel file (default: pagos_amortizacion_consolidado.xlsx)")
+    parser.add_argument("--input-dir", default=INPUT_DIR, help=f"Directory containing getjobid*.pdf files (default: {INPUT_DIR})")
+    parser.add_argument("--output", default=OUTPUT_FILE, help=f"Path for the output Excel file (default: {OUTPUT_FILE})")
 
     args = parser.parse_args()
     print(f"Input directory: {args.input_dir}")
