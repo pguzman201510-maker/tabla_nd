@@ -114,7 +114,7 @@ def process_pdf_file(filepath):
         credito = None
         tramos_registry = {} # maps tramo_id to (monto_total, currency)
 
-        # Pass 1: Build the tramos_registry and find Crédito number
+        # Pass 1: Build the tramos_registry and find Crédito
         for page in pdf.pages:
             text = page.extract_text()
             if not text:
@@ -155,7 +155,7 @@ def process_pdf_file(filepath):
             print(f"Warning: Crédito ID not found in {filename}")
             credito = "Unknown"
 
-        # Pass 2: Parse flows and apply active tramo context
+        # Pass 2: Parse flows
         current_tramo_id = None
         for page in pdf.pages:
             text = page.extract_text()
@@ -189,27 +189,22 @@ def process_pdf_file(filepath):
                         monto_amortizado = parsed['Amortizaciones']
                         # Filtro estricto: keep only rows where Amortizaciones > 0
                         if monto_amortizado > 0:
-                            # Look up corresponding tramo details
+                            tid = current_tramo_id if current_tramo_id is not None else 1
+
+                            # Look up corresponding tramo header details
                             monto_total_tramo = 0.0
-                            if current_tramo_id in tramos_registry:
-                                monto_total_tramo = tramos_registry[current_tramo_id][0]
+                            if tid in tramos_registry:
+                                monto_total_tramo = tramos_registry[tid][0]
                             else:
-                                # Fallback: if there is only one tramo or a default tramo
                                 if len(tramos_registry) == 1:
                                     monto_total_tramo = list(tramos_registry.values())[0][0]
 
-                            # Calculate Percentage Amortized
-                            porcentaje_amortizado = 0.0
-                            if monto_total_tramo > 0:
-                                porcentaje_amortizado = monto_amortizado / monto_total_tramo
-
                             records.append({
-                                'Credito': credito,
-                                'Tramo': current_tramo_id if current_tramo_id is not None else 1,
+                                'Credito': int(credito) if credito.isdigit() else credito,
+                                'Tramo': tid,
                                 'Monto_Total_Tramo': monto_total_tramo,
                                 'Fecha_Amortizacion': parsed['Fecha_Der'],
                                 'Monto_Amortizado': monto_amortizado,
-                                'Porcentaje_Amortizado': porcentaje_amortizado,
                                 'Documento_Ref': parsed['Ref']
                             })
 
@@ -244,14 +239,24 @@ def main():
         except Exception as e:
             print(f"  -> Error processing {pdf_file}: {e}")
 
-    print(f"Total consolidated payments: {len(all_records)}")
+    print(f"Total extracted payments (including duplicates): {len(all_records)}")
 
     if not all_records:
         print("No payments found to write to Excel.")
         return
 
-    # Convert to DataFrame and sort to be nice and clean
+    # Convert to DataFrame
     df = pd.DataFrame(all_records)
+
+    # Remove duplicates (e.g. if the same PDF exists twice in the folder)
+    df = df.drop_duplicates()
+    print(f"Total unique payments after deduplication: {len(df)}")
+
+    # Option B Calculation:
+    # Calculate Porcentaje_Amortizado grouping by Credito and Tramo over the final consolidated dataset
+    df['Porcentaje_Amortizado'] = df.groupby(['Credito', 'Tramo'])['Monto_Amortizado'].transform(
+        lambda x: x / x.sum() if x.sum() > 0 else 0.0
+    )
 
     # Order columns as specified
     cols = ['Credito', 'Tramo', 'Monto_Total_Tramo', 'Fecha_Amortizacion', 'Monto_Amortizado', 'Porcentaje_Amortizado', 'Documento_Ref']
